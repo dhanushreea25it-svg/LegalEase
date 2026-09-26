@@ -1,10 +1,35 @@
 import os
+import sys
+from pathlib import Path
+
 import requests
 import streamlit as st
 from dotenv import load_dotenv
 
+
+# ---------------------------------------------------------
+# PROJECT ROOT
+# ---------------------------------------------------------
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+# ---------------------------------------------------------
+# ENVIRONMENT VARIABLES
+# ---------------------------------------------------------
 load_dotenv()
 
+BACKEND_URL = os.getenv(
+    "BACKEND_URL",
+    "https://legalease-nwrr.onrender.com"
+).rstrip("/")
+
+
+# ---------------------------------------------------------
+# DOCUMENT FORMATTERS
+# ---------------------------------------------------------
 from backend.services.document_formatter import (
     format_docx,
     format_pdf,
@@ -13,10 +38,9 @@ from backend.services.document_formatter import (
 )
 
 
-# --------------------------------------------------
-# PAGE CONFIGURATION
-# --------------------------------------------------
-
+# ---------------------------------------------------------
+# STREAMLIT PAGE CONFIG
+# ---------------------------------------------------------
 st.set_page_config(
     page_title="LegalEase",
     page_icon="⚖️",
@@ -24,10 +48,9 @@ st.set_page_config(
 )
 
 
-# --------------------------------------------------
+# ---------------------------------------------------------
 # CUSTOM CSS
-# --------------------------------------------------
-
+# ---------------------------------------------------------
 st.markdown(
     """
     <style>
@@ -80,27 +103,23 @@ st.markdown(
 )
 
 
-# --------------------------------------------------
-# TITLE
-# --------------------------------------------------
-
+# ---------------------------------------------------------
+# HEADER
+# ---------------------------------------------------------
 st.markdown(
     '<div class="main-title">⚖️ LegalEase</div>',
     unsafe_allow_html=True,
 )
 
 st.markdown(
-    '<div class="subtitle">'
-    'AI-Powered Legal Document Generator'
-    '</div>',
+    '<div class="subtitle">AI-Powered Legal Document Generator</div>',
     unsafe_allow_html=True,
 )
 
 
-# --------------------------------------------------
+# ---------------------------------------------------------
 # DISCLAIMER
-# --------------------------------------------------
-
+# ---------------------------------------------------------
 st.markdown(
     """
     <div class="notice">
@@ -114,20 +133,9 @@ st.markdown(
 )
 
 
-# --------------------------------------------------
-# BACKEND URL
-# --------------------------------------------------
-
-BACKEND_URL = os.getenv(
-    "BACKEND_URL",
-    "http://127.0.0.1:8000"
-)
-
-
-# --------------------------------------------------
+# ---------------------------------------------------------
 # SESSION STATE
-# --------------------------------------------------
-
+# ---------------------------------------------------------
 if "generated_content" not in st.session_state:
     st.session_state.generated_content = ""
 
@@ -135,10 +143,9 @@ if "document_type" not in st.session_state:
     st.session_state.document_type = "Employment Contract"
 
 
-# --------------------------------------------------
-# INPUT SECTION
-# --------------------------------------------------
-
+# ---------------------------------------------------------
+# DOCUMENT INPUT
+# ---------------------------------------------------------
 st.subheader("📄 Create Your Legal Document")
 
 
@@ -186,10 +193,9 @@ terms = st.text_area(
 )
 
 
-# --------------------------------------------------
-# GENERATE BUTTON
-# --------------------------------------------------
-
+# ---------------------------------------------------------
+# GENERATE DOCUMENT
+# ---------------------------------------------------------
 if st.button(
     "✨ Generate Document",
     use_container_width=True,
@@ -225,43 +231,58 @@ if st.button(
                     timeout=120,
                 )
 
+            # -------------------------------------------------
+            # SUCCESS
+            # -------------------------------------------------
             if response.status_code == 200:
 
                 data = response.json()
 
-                st.session_state.generated_content = (
-                    data["content"]
-                )
+                st.session_state.generated_content = data[
+                    "content"
+                ]
 
-                st.session_state.document_type = (
-                    data["document_type"]
-                )
+                st.session_state.document_type = data[
+                    "document_type"
+                ]
 
                 st.success(
                     "Document generated successfully!"
                 )
 
+            # -------------------------------------------------
+            # BACKEND ERROR
+            # -------------------------------------------------
             else:
 
                 try:
+
                     error_message = response.json().get(
                         "detail",
-                        "Unknown backend error."
+                        "Unknown backend error.",
                     )
+
                 except Exception:
+
                     error_message = response.text
 
                 st.error(
                     f"Generation failed: {error_message}"
                 )
 
+        # -----------------------------------------------------
+        # CONNECTION ERROR
+        # -----------------------------------------------------
         except requests.exceptions.ConnectionError:
 
             st.error(
-                "Backend server is not running. "
-                "Please start FastAPI first."
+                "Unable to connect to the LegalEase backend. "
+                "Please try again after a few seconds."
             )
 
+        # -----------------------------------------------------
+        # TIMEOUT
+        # -----------------------------------------------------
         except requests.exceptions.Timeout:
 
             st.error(
@@ -269,6 +290,9 @@ if st.button(
                 "Please try again."
             )
 
+        # -----------------------------------------------------
+        # OTHER ERROR
+        # -----------------------------------------------------
         except Exception as error:
 
             st.error(
@@ -276,16 +300,19 @@ if st.button(
             )
 
 
-# --------------------------------------------------
+# ---------------------------------------------------------
 # GENERATED DOCUMENT
-# --------------------------------------------------
-
+# ---------------------------------------------------------
 if st.session_state.generated_content:
 
     st.divider()
 
     st.subheader("📝 Generated Document")
 
+
+    # -----------------------------------------------------
+    # EDIT DOCUMENT
+    # -----------------------------------------------------
     edited_content = st.text_area(
         "Edit your document if required:",
         value=st.session_state.generated_content,
@@ -294,6 +321,10 @@ if st.session_state.generated_content:
 
     st.session_state.generated_content = edited_content
 
+
+    # -----------------------------------------------------
+    # PREVIEW
+    # -----------------------------------------------------
     st.subheader("👀 Document Preview")
 
     preview_html = format_html_preview(
@@ -306,20 +337,22 @@ if st.session_state.generated_content:
     )
 
 
-    # --------------------------------------------------
-    # DOWNLOAD SECTION
-    # --------------------------------------------------
-
+    # -----------------------------------------------------
+    # DOWNLOAD
+    # -----------------------------------------------------
     st.subheader("⬇️ Download Document")
+
 
     txt_file = format_txt(
         st.session_state.generated_content
     )
 
+
     docx_file = format_docx(
         st.session_state.generated_content,
         st.session_state.document_type,
     )
+
 
     pdf_file = format_pdf(
         st.session_state.generated_content,
@@ -330,6 +363,9 @@ if st.session_state.generated_content:
     col1, col2, col3 = st.columns(3)
 
 
+    # -----------------------------------------------------
+    # TXT
+    # -----------------------------------------------------
     with col1:
 
         st.download_button(
@@ -341,6 +377,9 @@ if st.session_state.generated_content:
         )
 
 
+    # -----------------------------------------------------
+    # DOCX
+    # -----------------------------------------------------
     with col2:
 
         st.download_button(
@@ -356,6 +395,9 @@ if st.session_state.generated_content:
         )
 
 
+    # -----------------------------------------------------
+    # PDF
+    # -----------------------------------------------------
     with col3:
 
         st.download_button(
